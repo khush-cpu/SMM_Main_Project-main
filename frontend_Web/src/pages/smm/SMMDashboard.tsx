@@ -14275,7 +14275,6 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
                               <th className="py-2 pr-4">Likes</th>
                               <th className="py-2 pr-4">Comments</th>
                               <th className="py-2 pr-4">Shares</th>
-                              <th className="py-2 pr-4">Views</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -14286,7 +14285,6 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
                                 <td className="py-2 pr-4 smm-text-secondary">{p.likes}</td>
                                 <td className="py-2 pr-4 smm-text-secondary">{p.comments}</td>
                                 <td className="py-2 pr-4 smm-text-secondary">{p.shares}</td>
-                                <td className="py-2 pr-4 smm-text-secondary">{p.views}</td>
                               </tr>
                             ))}
                           </tbody>
