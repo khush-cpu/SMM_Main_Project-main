@@ -259,3 +259,113 @@ exports.getOverview = async (req, res) => {
     });
   }
 };
+
+// ==========================================
+// NEW: GET /api/analytics?period=7d|30d|90d&clientId=
+// SMM ke "Analytics" tab ke liye — period-wise (last N days) real
+// totals (reach/impressions/engagement) + day-by-day weekly trend
+// (chart ke liye). Sirf PUBLISHED posts count hote hain (draft/queued
+// ka analytics data hota hi nahi). Koi field fake/hardcoded nahi —
+// "followers" abhi track nahi hota (SocialAccount model me follower
+// count sync nahi hai), isliye response me include nahi karte —
+// frontend usko "—" dikhata hai jab tak wo data genuinely available
+// na ho, 0 se confuse nahi karte.
+// ==========================================
+exports.getAnalytics = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const { clientId } = req.query;
+
+    // "7d" / "30d" / "90d" -> number of days, default 7
+    const days = parseInt(String(req.query.period || "7d"), 10) || 7;
+
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - (days - 1));
+    from.setHours(0, 0, 0, 0);
+
+    const matchStage = {
+      user: userObjectId,
+      status: "published",
+      $expr: {
+        $gte: [{ $ifNull: ["$publishedAt", "$createdAt"] }, from]
+      }
+    };
+    if (clientId) matchStage.client = new mongoose.Types.ObjectId(clientId);
+
+    // Day-wise buckets (yyyy-mm-dd) — used both for weeklyData chart
+    // and for the overall period totals (summed in JS below).
+    const daily = await Post.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: { $ifNull: ["$publishedAt", "$createdAt"] }
+            }
+          },
+          reach:       { $sum: "$reach" },
+          impressions: { $sum: "$impressions" },
+          likes:       { $sum: "$likes" },
+          comments:    { $sum: "$comments" },
+          shares:      { $sum: "$shares" }
+        }
+      }
+    ]);
+
+    const byDate = new Map(daily.map(d => [d._id, d]));
+
+    let totalReach = 0, totalImpressions = 0, totalEngagement = 0;
+    const weeklyData = [];
+
+    for (let i = 0; i < days; i++) {
+      const d = new Date(from);
+      d.setDate(from.getDate() + i);
+      const key = d.toISOString().slice(0, 10); // yyyy-mm-dd
+      const bucket = byDate.get(key);
+
+      const reach = bucket?.reach || 0;
+      const engagement = (bucket?.likes || 0) + (bucket?.comments || 0) + (bucket?.shares || 0);
+
+      totalReach += reach;
+      totalImpressions += bucket?.impressions || 0;
+      totalEngagement += engagement;
+
+      weeklyData.push({
+        day: d.toLocaleDateString("en-US", { weekday: "short" }), // "Mon", "Tue", ...
+        reach,
+        engagement
+      });
+    }
+
+    // Platform-wise post counts in the period — chart abhi frontend
+    // me render nahi hota, par API contract me tha isliye bhej rahe hain.
+    const platformData = await Post.aggregate([
+      { $match: matchStage },
+      { $unwind: "$results" },
+      { $match: { "results.status": "success" } },
+      { $group: { _id: "$results.platform", posts: { $sum: 1 } } },
+      { $project: { _id: 0, platform: "$_id", posts: 1 } },
+      { $sort: { platform: 1 } }
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        reach: totalReach,
+        impressions: totalImpressions,
+        engagement: totalEngagement,
+        weeklyData,
+        platformData
+      }
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      msg: err.message
+    });
+  }
+};

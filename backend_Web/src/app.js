@@ -321,6 +321,11 @@ app.use("/api/notifications", require("./routes/notifications.routes"));
 // ================= POST ROUTES =================
 app.use("/api/posts",   require("./routes/post.routes"));
 
+// ================= ANALYTICS ROUTES (SMM) =================
+// NEW: frontend ka Analytics tab GET /api/analytics call karta hai —
+// pehle ye route missing tha (404). Real data Post/SocialAccount se.
+app.use("/api/analytics", require("./routes/analytics.routes"));
+
 // ================= SUPER ADMIN ROUTES =================
 app.use("/api/superadmin", require("./routes/superAdmin.routes"));
 
