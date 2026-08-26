@@ -740,10 +740,16 @@ export interface AnalyticsRes {
   [key: string]: unknown;
 }
 
-export const apiGetAnalytics = (token: string, clientId?: string) => {
-  const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
-  return authRequest<AnalyticsRes>(`/api/analytics${qs}`, "GET", token);
-};
+export const apiGetAnalytics = (token: string, period = "7d", clientId?: string) =>
+  // FIXED: backend ko client-specific analytics chahiye — pehle sirf
+  // "period" query bhejta tha, clientId kabhi nahi jaata tha, isliye
+  // request 404 deta tha. Ab clientId bhi query string me bhejte hain
+  // jab selected ho.
+  authRequest<AnalyticsRes>(
+    `/api/analytics?period=${period}${clientId ? `&clientId=${clientId}` : ""}`,
+    "GET",
+    token
+  );
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 

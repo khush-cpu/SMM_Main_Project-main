@@ -272,6 +272,7 @@ Delete a draft.
 Manually publish a queued/scheduled post.
 
 ### GET /posts/overview
+
 Get analytics overview.
 
 ### GET /posts/search-tags?q=keyword

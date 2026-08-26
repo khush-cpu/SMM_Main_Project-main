@@ -11771,10 +11771,6 @@ const SMMDashboard = () => {
   const [overview, setOverview]         = useState<OverviewRes | null>(null);
   const [overviewLoading, setOvLoading] = useState(false);
   const [smmDashData, setSmmDashData]   = useState<any>(null);
-  // NEW: Overview ko ek specific client ke liye scope karne ke liye —
-  // "" (empty) = saare clients ka combined data (backend clientId
-  // optional treat karta hai jab nahi bheja jaaye)
-  const [overviewClientId, setOverviewClientId] = useState("");
 
   // clientList and gdList — extracted from design projects API
   const [clientList, setClientList]     = useState<{ id:string; name:string; email:string; phone?: string; company?: string; platforms?: string[] }[]>([]);
@@ -11839,6 +11835,9 @@ const SMMDashboard = () => {
 
   const [analytics, setAnalytics]             = useState<any>(null);
   const [analyticsLoading, setAnaLoading]     = useState(false);
+  // Analytics tab me client-wise data dikhane ke liye — backend clientId
+  // maange bina 404 deta tha, isliye ab dropdown se select karke bhejte hain.
+  const [analyticsClientId, setAnalyticsClientId] = useState("");
 
   // ── Compose state ──────────────────────────────────────────────────────────
   const [composeContent, setComposeContent]   = useState("");
@@ -11976,14 +11975,6 @@ const SMMDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // NEW: client filter badalne par Overview/Analytics dobara load karo
-  useEffect(() => {
-    if (!token) return;
-    if (view === "overview")  loadOverview();
-    if (view === "analytics") loadAnalytics();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overviewClientId]);
-
   useEffect(() => {
     if (!token) return;
     if (view === "overview")        { loadOverview(); loadPosts(); }
@@ -11998,6 +11989,13 @@ const SMMDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
+  // Analytics client dropdown badalte hi us client ka data reload karo.
+  useEffect(() => {
+    if (!token) return;
+    if (view === "analytics") loadAnalytics();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsClientId]);
+
   // When client changes in compose, fetch their channels
   useEffect(() => {
     if (composeClientId) fetchClientChannels(composeClientId);
@@ -12010,12 +12008,7 @@ const SMMDashboard = () => {
   // ── Loaders ─────────────────────────────────────────────────────────────────
   const loadOverview = async () => {
     setOvLoading(true);
-    try {
-      // clientId optional — select kiya hua ho to sirf usi client ka
-      // data aata hai, warna (empty) saare clients ka combined data
-      const { data } = await apiGetOverview(token, overviewClientId || undefined);
-      if (data) setOverview(data);
-    } catch {}
+    try { const { data } = await apiGetOverview(token); if (data) setOverview(data); } catch {}
     setOvLoading(false);
   };
 
@@ -12330,9 +12323,7 @@ const loadClientsWithChannels = async () => {
 
   const loadAnalytics = async () => {
     setAnaLoading(true);
-    // period hata diya — ab sirf selected client (agar koi select ho)
-    // ke hisaab se data aata hai, warna saare clients ka combined data
-    const { data } = await apiGetAnalytics(token, overviewClientId || undefined);
+    const { data } = await apiGetAnalytics(token,"7d",analyticsClientId||undefined);
     if (data?.data) setAnalytics(data.data);
     setAnaLoading(false);
   };
@@ -13015,23 +13006,6 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
                       </Card>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* NEW: Client filter — Overview ko ek specific client tak scope karo */}
-              {clientList.length>0&&(
-                <div className="flex items-center gap-2">
-                  <Label className="smm-text-primary text-sm font-medium whitespace-nowrap">Client:</Label>
-                  <select
-                    value={overviewClientId}
-                    onChange={e=>setOverviewClientId(e.target.value)}
-                    className="smm-select px-3 py-1.5 text-sm border smm-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">All Clients</option>
-                    {clientList.map(c=>(
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
                 </div>
               )}
 
@@ -14259,23 +14233,19 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
           {/* ── ANALYTICS ── */}
           {view==="analytics"&&(
             <div className="space-y-6">
-              {/* NEW: Client filter — Analytics ko ek specific client tak scope karo */}
-              {clientList.length>0&&(
-                <div className="flex items-center gap-2">
-                  <Label className="smm-text-primary text-sm font-medium whitespace-nowrap">Client:</Label>
-                  <select
-                    value={overviewClientId}
-                    onChange={e=>setOverviewClientId(e.target.value)}
-                    className="smm-select px-3 py-1.5 text-sm border smm-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">All Clients</option>
-                    {clientList.map(c=>(
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {analyticsLoading?(
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <select value={analyticsClientId} onChange={e=>setAnalyticsClientId(e.target.value)}
+                  className="smm-select px-3 py-2 text-sm border smm-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                  <option value="">Select Client</option>
+                  {clientList.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              {!analyticsClientId?(
+                <Card className="smm-card p-12 text-center">
+                  <Users className="w-12 h-12 text-slate-300 mx-auto mb-3"/>
+                  <p className="smm-text-secondary">Analytics dekhne ke liye upar se ek client select karo.</p>
+                </Card>
+              ):analyticsLoading?(
                 <div className="flex items-center gap-2 smm-text-muted py-8 justify-center"><Loader2 className="w-5 h-5 animate-spin"/>Loading...</div>
               ):(
                 <>
