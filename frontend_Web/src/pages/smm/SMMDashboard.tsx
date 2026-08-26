@@ -11976,10 +11976,11 @@ const SMMDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // NEW: client filter badalne par Overview dobara load karo
+  // NEW: client filter badalne par Overview/Analytics dobara load karo
   useEffect(() => {
-    if (!token || view !== "overview") return;
-    loadOverview();
+    if (!token) return;
+    if (view === "overview")  loadOverview();
+    if (view === "analytics") loadAnalytics();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overviewClientId]);
 
@@ -12329,7 +12330,9 @@ const loadClientsWithChannels = async () => {
 
   const loadAnalytics = async () => {
     setAnaLoading(true);
-    const { data } = await apiGetAnalytics(token,"7d");
+    // period hata diya — ab sirf selected client (agar koi select ho)
+    // ke hisaab se data aata hai, warna saare clients ka combined data
+    const { data } = await apiGetAnalytics(token, overviewClientId || undefined);
     if (data?.data) setAnalytics(data.data);
     setAnaLoading(false);
   };
@@ -14256,6 +14259,22 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
           {/* ── ANALYTICS ── */}
           {view==="analytics"&&(
             <div className="space-y-6">
+              {/* NEW: Client filter — Analytics ko ek specific client tak scope karo */}
+              {clientList.length>0&&(
+                <div className="flex items-center gap-2">
+                  <Label className="smm-text-primary text-sm font-medium whitespace-nowrap">Client:</Label>
+                  <select
+                    value={overviewClientId}
+                    onChange={e=>setOverviewClientId(e.target.value)}
+                    className="smm-select px-3 py-1.5 text-sm border smm-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">All Clients</option>
+                    {clientList.map(c=>(
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {analyticsLoading?(
                 <div className="flex items-center gap-2 smm-text-muted py-8 justify-center"><Loader2 className="w-5 h-5 animate-spin"/>Loading...</div>
               ):(

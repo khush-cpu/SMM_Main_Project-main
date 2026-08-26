@@ -740,12 +740,10 @@ export interface AnalyticsRes {
   [key: string]: unknown;
 }
 
-export const apiGetAnalytics = (token: string, period = "7d") =>
-  authRequest<AnalyticsRes>(
-    `/api/analytics?period=${period}`,
-    "GET",
-    token
-  );
+export const apiGetAnalytics = (token: string, clientId?: string) => {
+  const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
+  return authRequest<AnalyticsRes>(`/api/analytics${qs}`, "GET", token);
+};
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 
