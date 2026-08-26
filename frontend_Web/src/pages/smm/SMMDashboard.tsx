@@ -11771,6 +11771,10 @@ const SMMDashboard = () => {
   const [overview, setOverview]         = useState<OverviewRes | null>(null);
   const [overviewLoading, setOvLoading] = useState(false);
   const [smmDashData, setSmmDashData]   = useState<any>(null);
+  // NEW: Overview ko ek specific client ke liye scope karne ke liye —
+  // "" (empty) = saare clients ka combined data (backend clientId
+  // optional treat karta hai jab nahi bheja jaaye)
+  const [overviewClientId, setOverviewClientId] = useState("");
 
   // clientList and gdList — extracted from design projects API
   const [clientList, setClientList]     = useState<{ id:string; name:string; email:string; phone?: string; company?: string; platforms?: string[] }[]>([]);
@@ -11972,6 +11976,13 @@ const SMMDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // NEW: client filter badalne par Overview dobara load karo
+  useEffect(() => {
+    if (!token || view !== "overview") return;
+    loadOverview();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overviewClientId]);
+
   useEffect(() => {
     if (!token) return;
     if (view === "overview")        { loadOverview(); loadPosts(); }
@@ -11998,7 +12009,12 @@ const SMMDashboard = () => {
   // ── Loaders ─────────────────────────────────────────────────────────────────
   const loadOverview = async () => {
     setOvLoading(true);
-    try { const { data } = await apiGetOverview(token); if (data) setOverview(data); } catch {}
+    try {
+      // clientId optional — select kiya hua ho to sirf usi client ka
+      // data aata hai, warna (empty) saare clients ka combined data
+      const { data } = await apiGetOverview(token, overviewClientId || undefined);
+      if (data) setOverview(data);
+    } catch {}
     setOvLoading(false);
   };
 
@@ -12996,6 +13012,23 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
                       </Card>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* NEW: Client filter — Overview ko ek specific client tak scope karo */}
+              {clientList.length>0&&(
+                <div className="flex items-center gap-2">
+                  <Label className="smm-text-primary text-sm font-medium whitespace-nowrap">Client:</Label>
+                  <select
+                    value={overviewClientId}
+                    onChange={e=>setOverviewClientId(e.target.value)}
+                    className="smm-select px-3 py-1.5 text-sm border smm-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">All Clients</option>
+                    {clientList.map(c=>(
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
