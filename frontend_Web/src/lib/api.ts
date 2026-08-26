@@ -5,6 +5,7 @@ export const BASE_URL =
   // "https://whacking-dispute-agility.ngrok-free.dev";
   // "https://smm-backend1-stkn.onrender.com";
   "https://gc360smm.duckdns.org";
+  // "https://eradicate-switch-catfight.ngrok-free.dev";
   // "https://gc360smm.duckdns.org";
   
 
@@ -740,16 +741,18 @@ export interface AnalyticsRes {
   [key: string]: unknown;
 }
 
-export const apiGetAnalytics = (token: string, period = "7d", clientId?: string) =>
-  // FIXED: backend ko client-specific analytics chahiye — pehle sirf
-  // "period" query bhejta tha, clientId kabhi nahi jaata tha, isliye
-  // request 404 deta tha. Ab clientId bhi query string me bhejte hain
-  // jab selected ho.
-  authRequest<AnalyticsRes>(
-    `/api/analytics?period=${period}${clientId ? `&clientId=${clientId}` : ""}`,
+export const apiGetAnalytics = (token: string, clientId?: string) => {
+  // FIXED: clientId pehle sirf function-signature me tha, query string me
+  // kabhi jaata hi nahi tha — isliye backend hamesha agency-wide/global
+  // data deta tha, client-specific nahi. Ab apiGetOverview jaisa hi
+  // ?clientId=... query param bhejte hain jab clientId selected ho.
+  const qs = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
+  return authRequest<AnalyticsRes>(
+    `/api/posts/overview${qs}`,
     "GET",
     token
   );
+};
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 

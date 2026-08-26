@@ -12267,12 +12267,25 @@ const loadClientsWithChannels = async () => {
 
   const loadPosts = async () => {
     setPostsLoading(true); setPostsError(null);
-    const { data, error } = await apiGetPosts(token);
-    if (error) { if(!error.includes("404")&&!error.includes("not found")) setPostsError(error); }
+    // FIXED: "/api/posts" (no status) route backend par exist hi nahi karta
+    // ("Cannot GET /api/posts") — isliye published posts (e.g. client ka
+    // Instagram post kuch ghante pehle publish hua) Overview widget aur
+    // Calendar par kabhi dikhte hi nahi the. Ab existing working endpoints
+    // (published + queued + drafts) se milake "posts" banate hain.
+    const [pubRes, queuedRes, draftsRes] = await Promise.all([
+      apiGetPosts(token, "published"),
+      apiGetQueuedPosts(token),
+      apiGetDrafts(token),
+    ]);
+    const extractList = (raw: unknown) => {
+      const r = raw as any;
+      const list = r?.posts ?? r?.data?.posts ?? r?.data ?? (Array.isArray(r) ? r : []);
+      return Array.isArray(list) ? list : [];
+    };
+    const err = pubRes.error || queuedRes.error || draftsRes.error;
+    if (err) { setPostsError(err); }
     else {
-      const raw=data as any;
-      const list=raw?.posts??raw?.data?.posts??raw?.data??(Array.isArray(raw)?raw:[]);
-      setPosts(Array.isArray(list)?list:[]);
+      setPosts([...extractList(pubRes.data), ...extractList(queuedRes.data), ...extractList(draftsRes.data)]);
     }
     setPostsLoading(false);
   };
@@ -12323,7 +12336,7 @@ const loadClientsWithChannels = async () => {
 
   const loadAnalytics = async () => {
     setAnaLoading(true);
-    const { data } = await apiGetAnalytics(token,"7d",analyticsClientId||undefined);
+    const { data } = await apiGetAnalytics(token, analyticsClientId||undefined);
     if (data?.data) setAnalytics(data.data);
     setAnaLoading(false);
   };
@@ -12709,8 +12722,8 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
     return Array.from(groups.entries()).sort((a,b)=>a[0].localeCompare(b[0]));
   };
 
-  const weeklyData = analytics?.weeklyData?.length
-    ? analytics.weeklyData
+  const weeklyData = analytics?.analytics?.weeklyData?.length
+    ? analytics.analytics.weeklyData
     : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(day=>({day,reach:0,engagement:0}));
 
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -14249,40 +14262,60 @@ const handleConnectForClient = async (platId: string, clientId: string) => {
                 <div className="flex items-center gap-2 smm-text-muted py-8 justify-center"><Loader2 className="w-5 h-5 animate-spin"/>Loading...</div>
               ):(
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      {label:"Total Reach",  value:analytics?.reach??       "—", icon:Eye,        color:"text-blue-600",   bg:"bg-blue-50 dark:bg-blue-900/30"},
-                      {label:"Impressions",  value:analytics?.impressions?? "—", icon:TrendingUp,  color:"text-green-600",  bg:"bg-green-50 dark:bg-green-900/30"},
-                      {label:"Engagement",   value:analytics?.engagement??  "—", icon:Heart,       color:"text-pink-600",   bg:"bg-pink-50 dark:bg-pink-900/30"},
-                      {label:"Followers",    value:analytics?.followers??   "—", icon:Users,       color:"text-purple-600", bg:"bg-purple-50 dark:bg-purple-900/30"},
-                    ].map(s=>(
-                      <Card key={s.label} className="smm-card p-5">
-                        <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center mb-3`}><s.icon className={`w-4 h-4 ${s.color}`}/></div>
-                        <div className="text-2xl font-bold smm-text-primary">{s.value}</div>
-                        <div className="text-xs smm-text-muted mt-1">{s.label}</div>
-                      </Card>
-                    ))}
-                  </div>
+                  {/* Platform-wise breakdown — response me byPlatform array pehle se tha, ab UI me dikh raha hai */}
                   <Card className="smm-card p-6">
-                    <h3 className="font-semibold smm-text-primary mb-4">Weekly Reach & Engagement</h3>
-                    {analytics?.weeklyData?.length?(
-                      <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={weeklyData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={dark?"#334155":"#f1f5f9"}/>
-                            <XAxis dataKey="day" stroke={dark?"#64748b":"#94a3b8"} fontSize={12}/>
-                            <YAxis stroke={dark?"#64748b":"#94a3b8"} fontSize={12}/>
-                            <Tooltip contentStyle={{background:dark?"#1e293b":"#fff",border:"1px solid #334155",borderRadius:8}}/>
-                            <Line type="monotone" dataKey="reach" stroke="#22c55e" strokeWidth={2.5} name="Reach"/>
-                            <Line type="monotone" dataKey="engagement" stroke="#818cf8" strokeWidth={2.5} name="Engagement"/>
-                          </LineChart>
-                        </ResponsiveContainer>
+                    <h3 className="font-semibold smm-text-primary mb-4">Performance by Platform</h3>
+                    {analytics?.analytics?.byPlatform?.length?(
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left smm-text-muted border-b smm-border">
+                              <th className="py-2 pr-4">Platform</th>
+                              <th className="py-2 pr-4">Posts</th>
+                              <th className="py-2 pr-4">Likes</th>
+                              <th className="py-2 pr-4">Comments</th>
+                              <th className="py-2 pr-4">Shares</th>
+                              <th className="py-2 pr-4">Views</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analytics.analytics.byPlatform.map((p:any)=>(
+                              <tr key={p.platform} className="border-b smm-border last:border-0">
+                                <td className="py-2 pr-4 capitalize font-medium smm-text-primary">{p.platform}</td>
+                                <td className="py-2 pr-4 smm-text-secondary">{p.posts}</td>
+                                <td className="py-2 pr-4 smm-text-secondary">{p.likes}</td>
+                                <td className="py-2 pr-4 smm-text-secondary">{p.comments}</td>
+                                <td className="py-2 pr-4 smm-text-secondary">{p.shares}</td>
+                                <td className="py-2 pr-4 smm-text-secondary">{p.views}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     ):(
-                      <div className="h-32 flex items-center justify-center smm-text-muted text-sm">
-                        No analytics data available. Connect social accounts first.
+                      <div className="h-16 flex items-center justify-center smm-text-muted text-sm">
+                        No platform data available.
                       </div>
                     )}
+                  </Card>
+
+                  {/* Posts summary — response.data.posts se */}
+                  <Card className="smm-card p-6">
+                    <h3 className="font-semibold smm-text-primary mb-4">Posts Summary</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                      {[
+                        {label:"Total",     value:analytics?.posts?.totalPosts},
+                        {label:"Published", value:analytics?.posts?.publishedPosts},
+                        {label:"Scheduled", value:analytics?.posts?.scheduledPosts},
+                        {label:"Queued",    value:analytics?.posts?.queuedPosts},
+                        {label:"Draft",     value:analytics?.posts?.draftPosts},
+                      ].map(s=>(
+                        <div key={s.label}>
+                          <div className="text-xl font-bold smm-text-primary">{s.value ?? 0}</div>
+                          <div className="text-xs smm-text-muted mt-1">{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
                   </Card>
                 </>
               )}

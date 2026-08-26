@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { ArrowUpRight, Calendar, FileText, TrendingUp, Users, PenSquare, Loader2, AlertCircle, Eye, Share2, MessageCircle, Heart } from "lucide-react";
 import { BarChart, Bar, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAuth } from "@/lib/auth";
-import { apiGetPosts, apiGetOverview, type Post, type PostsOverviewByPlatform } from "@/lib/api";
+import { apiGetPosts, apiGetQueuedPosts, apiGetDrafts, apiGetOverview, type Post, type PostsOverviewByPlatform } from "@/lib/api";
 
 const Overview = () => {
   const { user } = useAuth();
@@ -39,15 +39,33 @@ const Overview = () => {
       setLoading(true);
       setError(null);
       try {
-        const [postsRes, overviewRes] = await Promise.all([
-          apiGetPosts(user.token),
+        // FIXED: "/api/posts" (no status) route doesn't exist on the backend
+        // (returns "Cannot GET /api/posts") — isliye published posts (e.g.
+        // ek client ka Instagram post kuch ghante pehle publish hua) kabhi
+        // yahan aate hi nahi the. Ab existing working endpoints
+        // (published + queued + drafts) se milake "posts" banate hain.
+        const [publishedRes, queuedRes, draftsRes, overviewRes] = await Promise.all([
+          apiGetPosts(user.token, "published"),
+          apiGetQueuedPosts(user.token),
+          apiGetDrafts(user.token),
           apiGetOverview(user.token),
         ]);
 
-        if (postsRes.error) {
-          setError("Posts load nahi hue: " + postsRes.error);
+        const extractList = (raw: unknown): Post[] => {
+          const r = raw as any;
+          const list = r?.posts ?? r?.data?.posts ?? r?.data ?? (Array.isArray(r) ? r : []);
+          return Array.isArray(list) ? list : [];
+        };
+
+        const postsErr = publishedRes.error || queuedRes.error || draftsRes.error;
+        if (postsErr) {
+          setError("Posts load nahi hue: " + postsErr);
         } else {
-          const allPosts = postsRes.data?.posts ?? postsRes.data?.data ?? [];
+          const allPosts = [
+            ...extractList(publishedRes.data),
+            ...extractList(queuedRes.data),
+            ...extractList(draftsRes.data),
+          ];
           setPosts(allPosts);
         }
 
@@ -108,7 +126,12 @@ const Overview = () => {
     reach: p.reach ?? 0,
   }));
 
-  const recentPosts = posts.slice(0, 5);
+  const recentPosts = [...posts]
+    .sort((a, b) =>
+      new Date(b.createdAt ?? b.scheduleAt ?? b.scheduled_at ?? 0).getTime() -
+      new Date(a.createdAt ?? a.scheduleAt ?? a.scheduled_at ?? 0).getTime()
+    )
+    .slice(0, 5);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">

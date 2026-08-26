@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { apiGetPosts, type Post } from "@/lib/api";
+import { apiGetPosts, apiGetQueuedPosts, type Post } from "@/lib/api";
 import { Link } from "react-router-dom";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -34,12 +34,25 @@ const CalendarPage = () => {
     (async () => {
       setLoading(true);
       setError(null);
-      const { data, error: err } = await apiGetPosts(user.token);
+      // FIXED: "/api/posts" (no status) route doesn't exist on the backend
+      // (returns "Cannot GET /api/posts") — isliye published posts (jaise
+      // ek client ka Instagram post kuch ghante pehle publish hua) calendar
+      // par kabhi dikhte hi nahi the. Ab existing working endpoints
+      // (published + queued) se milake list banate hain.
+      const [pubRes, queuedRes] = await Promise.all([
+        apiGetPosts(user.token, "published"),
+        apiGetQueuedPosts(user.token),
+      ]);
+      const err = pubRes.error || queuedRes.error;
       if (err) {
         setError("Posts load nahi hue: " + err);
       } else {
-        const all: Post[] =
-          data?.posts ?? (data as any)?.data ?? [];
+        const extractList = (raw: unknown): Post[] => {
+          const r = raw as any;
+          const list = r?.posts ?? r?.data?.posts ?? r?.data ?? (Array.isArray(r) ? r : []);
+          return Array.isArray(list) ? list : [];
+        };
+        const all: Post[] = [...extractList(pubRes.data), ...extractList(queuedRes.data)];
         // Show scheduled + published both on calendar
         setPosts(all.filter((p) => p.status === "scheduled" || p.status === "published"));
       }
