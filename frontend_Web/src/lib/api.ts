@@ -5,7 +5,7 @@ export const BASE_URL =
   // "https://whacking-dispute-agility.ngrok-free.dev";
   // "https://smm-backend1-stkn.onrender.com";
   // "https://eradicate-switch-catfight.ngrok-free.dev";
-  "https://gc360smm.duckdns.org";
+    "https://smm-main-project-main.onrender.com";
   
 
 export const REDIRECT_URI =
