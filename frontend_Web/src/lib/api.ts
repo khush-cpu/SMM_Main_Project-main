@@ -2,10 +2,7 @@
 
 export const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  // "https://whacking-dispute-agility.ngrok-free.dev";
-  // "https://smm-backend1-stkn.onrender.com";
-  // "https://eradicate-switch-catfight.ngrok-free.dev";
-    "https://smm-main-project-main.onrender.com";
+  "https://smm-main-project-main.onrender.com"
   
 
 export const REDIRECT_URI =
